@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Bike 4 U — My Statement</title>
+<style>
+:root{--bg:#0b1220;--card:#121c30;--line:#1f2c47;--txt:#e8eef8;--mut:#8ea0bd;--teal:#14b8a6;--pink:#ec4899;--red:#f87171;--amber:#fbbf24;--green:#34d399}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font:15px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;padding:14px;max-width:640px;margin:0 auto}
+h1{font-size:21px;margin:2px 0 2px}
+h2{font-size:14px;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;margin:22px 0 8px}
+.brand{color:var(--pink);font-weight:800;letter-spacing:.04em;font-size:13px}
+.mut{color:var(--mut);font-size:12px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+.kpi b{display:block;font-size:19px;margin-top:2px}
+.kpi.paid b{color:var(--green)}.kpi.owe b{color:var(--red)}
+.row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:7px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.row .l{min-width:0}
+.row .t{font-size:13.5px}
+.row .s{font-size:11.5px;color:var(--mut)}
+.pill{font-size:10.5px;font-weight:700;border-radius:99px;padding:3px 9px;white-space:nowrap}
+.p-paid{background:rgba(52,211,153,.15);color:var(--green)}
+.p-part{background:rgba(251,191,36,.15);color:var(--amber)}
+.p-due{background:rgba(248,113,113,.15);color:var(--red)}
+.p-co{background:rgba(20,184,166,.15);color:var(--teal)}
+.amt{text-align:right;white-space:nowrap;font-size:13px}
+.amt small{display:block;color:var(--mut);font-size:10.5px}
+#loading,#err{text-align:center;padding:60px 20px;color:var(--mut)}
+.tot{border-top:1px solid var(--line);margin-top:6px;padding-top:8px;display:flex;justify-content:space-between;font-weight:700;font-size:13.5px}
+.foot{text-align:center;color:var(--mut);font-size:11.5px;margin:26px 0 10px}
+.more{width:100%;background:none;border:1px solid var(--line);color:var(--mut);border-radius:10px;padding:8px;font-size:12px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="brand">BIKE 4 U</div>
+<h1>My Statement</h1>
+<p class="mut" id="who">&nbsp;</p>
+<div id="loading">Loading your statement…</div>
+<div id="err" style="display:none">Could not load — please reopen the link from WhatsApp.</div>
+<div id="main" style="display:none">
+  <div class="cards" id="kpis"></div>
+  <h2>Weekly Bike Payments</h2>
+  <div id="weeks"></div>
+  <h2>Money We Received From You</h2>
+  <div id="events"></div>
+  <h2>Fines</h2>
+  <div id="fines"></div>
+  <h2>Repairs, Tyres &amp; Discs</h2>
+  <div id="repairs"></div>
+  <p class="foot">Statement generated <span id="gen"></span> — figures update live.<br>Questions? WhatsApp Bike 4 U on +27 76 507 5716.</p>
+</div>
+<script>
+const API="https://jpzhifjccuxcetdodeue.supabase.co/functions/v1/statement-web";
+const R=(n)=>"R"+(Number(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g," ");
+const D=(s)=>s?new Date(s+(s.length===10?"T00:00:00":"")).toLocaleDateString("en-ZA",{day:"2-digit",month:"short",year:"numeric"}):"";
+function pill(status){
+  if(status==="paid"||status==="completed")return '<span class="pill p-paid">PAID</span>';
+  if(status==="partial")return '<span class="pill p-part">PARTIAL</span>';
+  return '<span class="pill p-due">OUTSTANDING</span>';
+}
+function rows(el,list,cap){
+  el.innerHTML=list.slice(0,cap).join("");
+  if(list.length>cap){
+    const b=document.createElement("button");b.className="more";b.textContent="Show all "+list.length;
+    b.onclick=()=>{el.innerHTML=list.join("");};el.appendChild(b);
+  }
+  if(list.length===0)el.innerHTML='<p class="mut">Nothing here.</p>';
+}
+async function init(){
+  const t=new URLSearchParams(location.search).get("t");
+  let d=null;
+  for(let a=1;a<=4;a++){
+    try{const r=await fetch(API+"?t="+encodeURIComponent(t||""));d=await r.json();if(d&&(d.ok||r.status===403))break;throw 0}
+    catch(_){await new Promise(r2=>setTimeout(r2,1200*a));}
+  }
+  document.getElementById("loading").style.display="none";
+  if(!d||!d.ok){document.getElementById("err").style.display="block";return;}
+  document.getElementById("who").textContent=d.driver.first_name+" "+d.driver.last_name+
+    (d.leases[0]?" — "+[d.leases[0].motorcycles?.make,d.leases[0].motorcycles?.series,d.leases[0].motorcycles?.license_number].filter(Boolean).join(" "):"");
+  const T=d.totals;
+  const chOut=T.fines.outstanding+T.repairs.outstanding+T.tyres.outstanding+T.discs.outstanding;
+  document.getElementById("kpis").innerHTML=
+    '<div class="kpi paid">Total paid (bike fees)<b>'+R(T.bike_paid)+'</b></div>'+
+    '<div class="kpi owe">Bike fees outstanding<b>'+R(T.bike_outstanding)+'</b></div>'+
+    '<div class="kpi paid">Fines &amp; repairs paid<b>'+R(T.fines.paid+T.repairs.paid+T.tyres.paid+T.discs.paid)+'</b></div>'+
+    '<div class="kpi owe">Fines &amp; repairs outstanding<b>'+R(chOut)+'</b></div>';
+  // weeks (newest first) — only weeks that have started
+  const today=new Date().toISOString().slice(0,10);
+  const weeks=d.periods.filter(p=>p.period_start<=today).reverse().map(p=>{
+    const owed=Math.max(0,p.amount_due-p.amount_paid);
+    return '<div class="row"><div class="l"><div class="t">'+D(p.period_start)+" – "+D(p.period_end)+
+      '</div><div class="s">Due '+R(p.amount_due)+'</div></div><div class="amt">'+pill(owed<=0.01?"paid":p.status)+
+      '<small>paid '+R(p.amount_paid)+'</small></div></div>';
+  });
+  rows(document.getElementById("weeks"),weeks,10);
+  const evs=d.events.slice().reverse().map(e=>
+    '<div class="row"><div class="l"><div class="t">'+D(e.event_date)+'</div><div class="s">'+(e.source||"payment")+
+    '</div></div><div class="amt" style="color:var(--green);font-weight:700">'+R(e.amount)+'</div></div>');
+  rows(document.getElementById("events"),evs,10);
+  const fineRows=d.charges.filter(c=>c.charge_type==="fine").reverse().map(c=>{
+    const due=Math.max(0,c.amount-(c.reduction_amount||0));
+    const owed=Math.max(0,due-c.amount_paid);
+    const co=c.is_company_expense===true;
+    return '<div class="row"><div class="l"><div class="t">'+(c.offence_description||"Traffic fine")+
+      '</div><div class="s">'+[D(c.date_of_offence),c.fine_reference].filter(Boolean).join(" · ")+'</div></div><div class="amt">'+
+      (co?'<span class="pill p-co">COVERED BY BIKE 4 U</span>':pill(owed<=0.01?"paid":c.status)+'<small>'+R(c.amount_paid)+" of "+R(due)+"</small>")+'</div></div>';
+  });
+  rows(document.getElementById("fines"),fineRows,8);
+  if(fineRows.length){
+    const f=d.totals.fines;
+    document.getElementById("fines").insertAdjacentHTML("beforeend",
+      '<div class="tot"><span>Your fines: paid '+R(f.paid)+'</span><span style="color:var(--red)">owing '+R(f.outstanding)+'</span></div>');
+  }
+  const repRows=d.charges.filter(c=>c.charge_type!=="fine").reverse().map(c=>{
+    const owed=Math.max(0,c.amount-c.amount_paid);
+    const co=c.is_company_expense===true;
+    return '<div class="row"><div class="l"><div class="t">'+(c.repair_description||c.charge_type)+
+      '</div><div class="s">'+[D(c.invoice_date||c.created_at?.slice(0,10)),c.supplier_name].filter(Boolean).join(" · ")+'</div></div><div class="amt">'+
+      (co?'<span class="pill p-co">COVERED BY BIKE 4 U</span>':pill(owed<=0.01?"paid":c.status)+'<small>'+R(c.amount_paid)+" of "+R(c.amount)+"</small>")+'</div></div>';
+  });
+  rows(document.getElementById("repairs"),repRows,8);
+  document.getElementById("gen").textContent=new Date(d.generated_at).toLocaleString("en-ZA");
+  document.getElementById("main").style.display="block";
+}
+init();
+</script>
+</body>
+</html>

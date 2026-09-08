@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bike 4 U — Your Contract</title>
+<style>body{font-family:-apple-system,sans-serif;background:#1E7292;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}p{font-size:18px}</style>
+</head>
+<body>
+<p>Opening your contract…</p>
+<script>
+  // Short contract link: /c/?t=<token> -> apply-web streams the signed PDF.
+  var t = new URLSearchParams(location.search).get("t") || "";
+  t = t.replace(/[^A-Za-z0-9]/g, "");
+  if (t) {
+    location.replace("https://jpzhifjccuxcetdodeue.supabase.co/functions/v1/apply-web?doc=" + t);
+  } else {
+    document.querySelector("p").textContent = "Invalid link — please contact Bike 4 U.";
+  }
+</script>
+</body>
+</html>
