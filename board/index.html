@@ -59,7 +59,10 @@ function render(){
   const w=document.getElementById('who');
   if(w.options.length!==(DATA.assignees||[]).length){
     const saved=localStorage.getItem('board_who')||'';
-    w.innerHTML=(DATA.assignees||[]).map(a=>'<option value="'+a.id+'"'+(a.id===saved?' selected':'')+'>'+esc(a.name)+'</option>').join('');
+    // Dom first and the default — it's his board (Max, 2026-09-18)
+    const ppl=[...(DATA.assignees||[])].sort((a,b)=>(a.name.toLowerCase()==='dom'?-1:b.name.toLowerCase()==='dom'?1:a.name.localeCompare(b.name)));
+    const sel=saved||((ppl.find(a=>a.name.toLowerCase()==='dom')||ppl[0]||{}).id||'');
+    w.innerHTML=ppl.map(a=>'<option value="'+a.id+'"'+(a.id===sel?' selected':'')+'>'+esc(a.name)+'</option>').join('');
     if(!saved&&w.options.length)localStorage.setItem('board_who',w.value);
   }
   const ME=w.value;
