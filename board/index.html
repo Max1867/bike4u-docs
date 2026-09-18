@@ -30,7 +30,7 @@ main{max-width:760px;margin:0 auto;padding:14px}
 <header><h1>Bike 4 U — Daily Board</h1><span id="date" class="meta"></span>
 <div class="tabs"><input type="date" id="df" class="tab" title="Show only one day (leave empty for the normal view)" style="color-scheme:dark"><span style="font-size:11px;color:#8a949b;align-self:center">I am</span><select id="who" class="tab"></select></div></header>
 <main><div id="list"><p class="empty">Loading…</p></div></main>
-<div class="add"><input type="text" id="nt" placeholder="Add a task…"><select id="na"></select><input type="date" id="nd"><input type="time" id="nh" title="Set a time to make it a reminder"><button id="nb">Add</button><p class="hint">Give it a time and it becomes a reminder that pops up in the app at that time.</p></div>
+<div class="add"><input type="text" id="nt" placeholder="Add a task…"><select id="na"></select><input type="date" id="nd"><input type="time" id="nh" title="Set a time to make it a reminder"><button id="nb">Add</button><p class="hint">Give it a time and it becomes a reminder that pops up in the app at that time. End with !, !! or !!! to set priority — !!! goes to the top.</p></div>
 <script>
 const TOKEN=new URLSearchParams(location.search).get('t');
 const API='https://jpzhifjccuxcetdodeue.supabase.co/functions/v1/todo-web';
@@ -45,7 +45,8 @@ function yest(){const d=new Date(Date.now()-86400000);return d.toISOString().sli
 function dateBox(r){return '<input class="dd" type="date" value="'+r.due_date+'" onchange="setDate(\''+r.id+'\',this.value,\''+r.kind+'\')">'}
 function row(r){
   const carried=!r.done&&r.first_due&&r.first_due<DATA.today;
-  const title=(r.kind==='rem'?'<span class="rem">🔔</span>':'')+(r.driver_name?'<b>'+esc(r.driver_name.split(' ')[0])+'</b>: ':'')+esc(r.title)+(r.due_time?' ('+String(r.due_time).slice(0,5)+')':'');
+  const pr=Number(r.priority)||0;
+  const title=(pr>0?'<span style="color:#ef4444;font-weight:800;margin-right:4px">'+'!'.repeat(pr)+'</span>':'')+(r.kind==='rem'?'<span class="rem">🔔</span>':'')+(r.driver_name?'<b>'+esc(r.driver_name.split(' ')[0])+'</b>: ':'')+esc(r.title)+(r.due_time?' ('+String(r.due_time).slice(0,5)+')':'');
   const meta=(carried?'<span class="warn">⚠ not completed '+(r.first_due===yest()?'yesterday':'since '+r.first_due)+' — prioritise today</span> · ':'')
     +(r.category?esc(r.category)+' · ':'')
     +(r.done?'✓ done '+new Date(r.done_at).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})+' by '+esc(r.done_by||'?'):'due '+dateBox(r));
@@ -72,7 +73,7 @@ function render(){
   const all=[
     ...(DATA.todos||[]).map(t=>({...t,kind:'todo',done:!!t.completed,done_at:t.completed_at,done_by:t.completed_by})),
     ...(DATA.reminders||[]).map(r=>({...r,kind:'rem',done:!!r.done_at,done_by:r.completed_by})),
-  ].sort((a,b)=>String(a.due_date).localeCompare(String(b.due_date))).filter(r=>!r.assignee_id||r.assignee_id===ME); // your jobs + unclaimed ones
+  ].sort((a,b)=>((Number(b.priority)||0)-(Number(a.priority)||0))||String(a.due_date).localeCompare(String(b.due_date))||String(a.created_at||'').localeCompare(String(b.created_at||''))).filter(r=>!r.assignee_id||r.assignee_id===ME); // !!! band first; newest at the bottom of its band
   const DF=dateFilter();
   if(DF){
     const dayRows=all.filter(r=>r.due_date===DF);
