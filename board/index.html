@@ -28,7 +28,7 @@ main{max-width:760px;margin:0 auto;padding:14px}
 .hint{font-size:10px;color:#5c666d;width:100%;margin:-2px 0 0}
 </style></head><body>
 <header><h1>🏍️ Bike 4 U — Daily Board</h1><span id="date" class="meta"></span>
-<div class="tabs"><span style="font-size:11px;color:#8a949b;align-self:center">I am</span><select id="who" class="tab"></select></div></header>
+<div class="tabs"><input type="date" id="df" class="tab" title="Show only one day (leave empty for the normal view)" style="color-scheme:dark"><span style="font-size:11px;color:#8a949b;align-self:center">I am</span><select id="who" class="tab"></select></div></header>
 <main><div id="list"><p class="empty">Loading…</p></div></main>
 <div class="add"><input type="text" id="nt" placeholder="Add a task…"><select id="na"></select><input type="date" id="nd"><input type="time" id="nh" title="Set a time to make it a reminder"><button id="nb">Add</button><p class="hint">Give it a time and it becomes a reminder that pops up in the app at that time.</p></div>
 <script>
@@ -37,6 +37,7 @@ const API='https://jpzhifjccuxcetdodeue.supabase.co/functions/v1/todo-web';
 let DATA=null;
 const colors={};const PAL=["#1E7292","#059669","#d97706","#7c3aed","#dc2626","#0891b2"];
 function whoName(){const w=document.getElementById('who');return (w.selectedOptions[0]&&w.selectedOptions[0].text)||'Dom'}
+function dateFilter(){return document.getElementById('df').value||''}
 async function post(body){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,who:whoName(),...body})});return r.json()}
 function chip(aid){const a=(DATA.assignees||[]).find(x=>x.id===aid);if(!a)return '';return '<span class="chip" style="background:'+(colors[a.id]||'#555')+'">'+a.name+'</span>'}
 function esc(x){return String(x||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}
@@ -72,6 +73,12 @@ function render(){
     ...(DATA.todos||[]).map(t=>({...t,kind:'todo',done:!!t.completed,done_at:t.completed_at,done_by:t.completed_by})),
     ...(DATA.reminders||[]).map(r=>({...r,kind:'rem',done:!!r.done_at,done_by:r.completed_by})),
   ].sort((a,b)=>String(a.due_date).localeCompare(String(b.due_date))).filter(r=>!r.assignee_id||r.assignee_id===ME); // your jobs + unclaimed ones
+  const DF=dateFilter();
+  if(DF){
+    const dayRows=all.filter(r=>r.due_date===DF);
+    el.innerHTML='<div class="section">Due '+DF+'</div>'+(dayRows.length?dayRows.map(row).join(''):'<p class="empty">Nothing due on '+DF+'</p>');
+    return;
+  }
   const carried=all.filter(r=>!r.done&&r.first_due&&r.first_due<DATA.today);
   const today=all.filter(r=>!r.done&&!(r.first_due&&r.first_due<DATA.today));
   const done=all.filter(r=>r.done);
@@ -90,8 +97,9 @@ async function editItem(id,kind){
 }
 async function tick(id,done,kind){await post({action:kind==='todo'?'done_todo':'done_rem',id,done});load()}
 async function setDate(id,due,kind){if(!due)return;await post({action:'set_date',id,due,kind});load()}
-async function load(){try{DATA=await post({action:'data'});render()}catch(e){document.getElementById('list').innerHTML='<p class="empty">Connection problem — retrying…</p>'}}
+async function load(){try{DATA=await post({action:'data',until:dateFilter()||null});render()}catch(e){document.getElementById('list').innerHTML='<p class="empty">Connection problem — retrying…</p>'}}
 document.getElementById('nb').onclick=async()=>{const t=document.getElementById('nt').value.trim();if(!t)return;await post({action:'add',title:t,assignee_id:document.getElementById('na').value||null,due:document.getElementById('nd').value||null,due_time:document.getElementById('nh').value||null});document.getElementById('nt').value='';document.getElementById('nh').value='';load()};
+document.getElementById('df').onchange=()=>load();
 document.getElementById('who').onchange=()=>{localStorage.setItem('board_who',document.getElementById('who').value);render()};
 document.getElementById('nd').value=new Date(Date.now()+72e5).toISOString().slice(0,10);
 load();setInterval(load,45000);
