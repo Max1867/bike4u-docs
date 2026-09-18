@@ -28,16 +28,16 @@ main{max-width:760px;margin:0 auto;padding:14px}
 .hint{font-size:10px;color:#5c666d;width:100%;margin:-2px 0 0}
 </style></head><body>
 <header><h1>🏍️ Bike 4 U — Daily Board</h1><span id="date" class="meta"></span>
-<div class="tabs"><span style="font-size:11px;color:#8a949b;align-self:center">I am</span><select id="who" class="tab"><option>Dom</option><option>Max</option></select></div></header>
-<div id="filters" style="max-width:760px;margin:10px auto 0;padding:0 14px;display:flex;gap:6px;flex-wrap:wrap"></div>
+<div class="tabs"><span style="font-size:11px;color:#8a949b;align-self:center">I am</span><select id="who" class="tab"></select></div></header>
 <main><div id="list"><p class="empty">Loading…</p></div></main>
 <div class="add"><input type="text" id="nt" placeholder="Add a task…"><select id="na"></select><input type="date" id="nd"><input type="time" id="nh" title="Set a time to make it a reminder"><button id="nb">Add</button><p class="hint">Give it a time and it becomes a reminder that pops up in the app at that time.</p></div>
 <script>
 const TOKEN=new URLSearchParams(location.search).get('t');
 const API='https://jpzhifjccuxcetdodeue.supabase.co/functions/v1/todo-web';
-let DATA=null,FILTER='';
+let DATA=null;
 const colors={};const PAL=["#1E7292","#059669","#d97706","#7c3aed","#dc2626","#0891b2"];
-async function post(body){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,who:document.getElementById('who').value,...body})});return r.json()}
+function whoName(){const w=document.getElementById('who');return (w.selectedOptions[0]&&w.selectedOptions[0].text)||'Dom'}
+async function post(body){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,who:whoName(),...body})});return r.json()}
 function chip(aid){const a=(DATA.assignees||[]).find(x=>x.id===aid);if(!a)return '';return '<span class="chip" style="background:'+(colors[a.id]||'#555')+'">'+a.name+'</span>'}
 function esc(x){return String(x||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}
 function yest(){const d=new Date(Date.now()-86400000);return d.toISOString().slice(0,10)}
@@ -56,13 +56,17 @@ function render(){
   (DATA.assignees||[]).forEach((a,i)=>colors[a.id]=PAL[i%PAL.length]);
   const na=document.getElementById('na');
   if(na.options.length!==(DATA.assignees||[]).length+1){na.innerHTML='<option value="">Anyone</option>'+(DATA.assignees||[]).map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join('')}
-  const fl=document.getElementById('filters');
-  fl.innerHTML=['<button class="tab" style="font-size:11px;padding:4px 12px;'+(FILTER===''?'background:#eceff1;color:#101214;font-weight:700':'')+'" onclick="setFilter(\'\')">All</button>']
-    .concat((DATA.assignees||[]).map(a=>'<button class="tab" style="font-size:11px;padding:4px 12px;'+(FILTER===a.id?'background:'+(colors[a.id]||'#555')+';border-color:'+(colors[a.id]||'#555')+';color:#fff;font-weight:700':'')+'" onclick="setFilter(\''+a.id+'\')">'+esc(a.name)+'</button>')).join('');
+  const w=document.getElementById('who');
+  if(w.options.length!==(DATA.assignees||[]).length){
+    const saved=localStorage.getItem('board_who')||'';
+    w.innerHTML=(DATA.assignees||[]).map(a=>'<option value="'+a.id+'"'+(a.id===saved?' selected':'')+'>'+esc(a.name)+'</option>').join('');
+    if(!saved&&w.options.length)localStorage.setItem('board_who',w.value);
+  }
+  const ME=w.value;
   const all=[
     ...(DATA.todos||[]).map(t=>({...t,kind:'todo',done:!!t.completed,done_at:t.completed_at,done_by:t.completed_by})),
     ...(DATA.reminders||[]).map(r=>({...r,kind:'rem',done:!!r.done_at,done_by:r.completed_by})),
-  ].sort((a,b)=>String(a.due_date).localeCompare(String(b.due_date))).filter(r=>!FILTER||r.assignee_id===FILTER);
+  ].sort((a,b)=>String(a.due_date).localeCompare(String(b.due_date))).filter(r=>!r.assignee_id||r.assignee_id===ME); // your jobs + unclaimed ones
   const carried=all.filter(r=>!r.done&&r.first_due&&r.first_due<DATA.today);
   const today=all.filter(r=>!r.done&&!(r.first_due&&r.first_due<DATA.today));
   const done=all.filter(r=>r.done);
@@ -72,7 +76,6 @@ function render(){
   if(done.length)html+='<div class="section">Done today</div>'+done.map(row).join('');
   el.innerHTML=html;
 }
-function setFilter(id){FILTER=id;render()}
 async function editItem(id,kind){
   const src=kind==='rem'?(DATA.reminders||[]):(DATA.todos||[]);
   const cur=src.find(x=>x.id===id);if(!cur)return;
@@ -84,6 +87,7 @@ async function tick(id,done,kind){await post({action:kind==='todo'?'done_todo':'
 async function setDate(id,due,kind){if(!due)return;await post({action:'set_date',id,due,kind});load()}
 async function load(){try{DATA=await post({action:'data'});render()}catch(e){document.getElementById('list').innerHTML='<p class="empty">Connection problem — retrying…</p>'}}
 document.getElementById('nb').onclick=async()=>{const t=document.getElementById('nt').value.trim();if(!t)return;await post({action:'add',title:t,assignee_id:document.getElementById('na').value||null,due:document.getElementById('nd').value||null,due_time:document.getElementById('nh').value||null});document.getElementById('nt').value='';document.getElementById('nh').value='';load()};
+document.getElementById('who').onchange=()=>{localStorage.setItem('board_who',document.getElementById('who').value);render()};
 document.getElementById('nd').value=new Date(Date.now()+72e5).toISOString().slice(0,10);
 load();setInterval(load,45000);
 </script></body></html>
