@@ -1,0 +1,77 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bike 4 U — Daily Board</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#101214;color:#eceff1}
+header{position:sticky;top:0;background:#161a1d;border-bottom:1px solid #2a2f33;padding:12px 16px;display:flex;align-items:center;gap:10px;z-index:5}
+h1{font-size:16px;margin:0}
+.tabs{display:flex;gap:6px;margin-left:auto}
+.tab{border:1px solid #2a2f33;background:none;color:#eceff1;padding:6px 14px;border-radius:999px;font-size:13px;cursor:pointer}
+main{max-width:760px;margin:0 auto;padding:14px}
+.item{display:flex;gap:10px;align-items:flex-start;background:#181c1f;border:1px solid #262b2f;border-radius:12px;padding:10px 12px;margin-bottom:8px}
+.item.carried{border-color:#d97706aa;background:#1f1a12}
+.item.done{opacity:.45}
+.cb{width:22px;height:22px;accent-color:#1E7292;margin-top:1px;flex:none}
+.t{font-size:14px;line-height:1.35}
+.meta{font-size:11px;color:#8a949b;margin-top:2px;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.chip{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#fff;margin-right:6px}
+.warn{color:#f59e0b;font-weight:600;font-size:11px}
+.dd{background:none;border:1px solid transparent;color:#8a949b;border-radius:6px;font-size:11px;padding:1px 3px;font-family:inherit}
+.dd:hover{border-color:#2a2f33}
+.rem{font-size:10px;font-weight:700;color:#67b7d1;margin-right:4px}
+.add{position:sticky;bottom:0;background:#161a1d;border-top:1px solid #2a2f33;padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap}
+.add input[type=text]{flex:1;min-width:160px;background:#101214;border:1px solid #2a2f33;color:#eceff1;border-radius:8px;padding:9px 10px;font-size:14px}
+.add select,.add input[type=date],.add input[type=time]{background:#101214;border:1px solid #2a2f33;color:#eceff1;border-radius:8px;padding:8px;font-size:13px}
+.add button{background:#1E7292;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-weight:600;font-size:14px;cursor:pointer}
+.section{font-size:11px;font-weight:700;letter-spacing:.05em;color:#8a949b;margin:14px 2px 8px;text-transform:uppercase}
+.empty{color:#5c666d;font-size:13px;padding:20px;text-align:center}
+.hint{font-size:10px;color:#5c666d;width:100%;margin:-2px 0 0}
+</style></head><body>
+<header><h1>🏍️ Bike 4 U — Daily Board</h1><span id="date" class="meta"></span>
+<div class="tabs"><select id="who" class="tab"><option>Dom</option><option>Max</option></select></div></header>
+<main><div id="list"><p class="empty">Loading…</p></div></main>
+<div class="add"><input type="text" id="nt" placeholder="Add a task…"><select id="na"></select><input type="date" id="nd"><input type="time" id="nh" title="Set a time to make it a reminder"><button id="nb">Add</button><p class="hint">Give it a time and it becomes a reminder that pops up in the app at that time.</p></div>
+<script>
+const TOKEN=new URLSearchParams(location.search).get('t');
+const API='https://jpzhifjccuxcetdodeue.supabase.co/functions/v1/todo-web';
+let DATA=null;
+const colors={};const PAL=["#1E7292","#059669","#d97706","#7c3aed","#dc2626","#0891b2"];
+async function post(body){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,who:document.getElementById('who').value,...body})});return r.json()}
+function chip(aid){const a=(DATA.assignees||[]).find(x=>x.id===aid);if(!a)return '';return '<span class="chip" style="background:'+(colors[a.id]||'#555')+'">'+a.name+'</span>'}
+function esc(x){return String(x||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}
+function yest(){const d=new Date(Date.now()-86400000);return d.toISOString().slice(0,10)}
+function dateBox(r){return '<input class="dd" type="date" value="'+r.due_date+'" onchange="setDate(\''+r.id+'\',this.value,\''+r.kind+'\')">'}
+function row(r){
+  const carried=!r.done&&r.first_due&&r.first_due<DATA.today;
+  const title=(r.kind==='rem'?'<span class="rem">🔔</span>':'')+(r.driver_name?'<b>'+esc(r.driver_name.split(' ')[0])+'</b>: ':'')+esc(r.title)+(r.due_time?' ('+String(r.due_time).slice(0,5)+')':'');
+  const meta=(carried?'<span class="warn">⚠ not completed '+(r.first_due===yest()?'yesterday':'since '+r.first_due)+' — prioritise today</span> · ':'')
+    +(r.category?esc(r.category)+' · ':'')
+    +(r.done?'✓ done '+new Date(r.done_at).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})+' by '+esc(r.done_by||'?'):'due '+dateBox(r));
+  return '<div class="item '+(carried?'carried ':'')+(r.done?'done':'')+'"><input class="cb" type="checkbox" '+(r.done?'checked':'')+' onchange="tick(\''+r.id+'\',this.checked,\''+r.kind+'\')"><div><div class="t">'+chip(r.assignee_id)+title+'</div><div class="meta">'+meta+'</div></div></div>';
+}
+function render(){
+  const el=document.getElementById('list');if(!DATA){el.innerHTML='<p class="empty">Loading…</p>';return}
+  document.getElementById('date').textContent=new Date().toLocaleDateString('en-ZA',{weekday:'long',day:'2-digit',month:'long'});
+  (DATA.assignees||[]).forEach((a,i)=>colors[a.id]=PAL[i%PAL.length]);
+  const na=document.getElementById('na');
+  if(na.options.length!==(DATA.assignees||[]).length+1){na.innerHTML='<option value="">Anyone</option>'+(DATA.assignees||[]).map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join('')}
+  const all=[
+    ...(DATA.todos||[]).map(t=>({...t,kind:'todo',done:!!t.completed,done_at:t.completed_at,done_by:t.completed_by})),
+    ...(DATA.reminders||[]).map(r=>({...r,kind:'rem',done:!!r.done_at,done_by:r.completed_by})),
+  ].sort((a,b)=>String(a.due_date).localeCompare(String(b.due_date)));
+  const carried=all.filter(r=>!r.done&&r.first_due&&r.first_due<DATA.today);
+  const today=all.filter(r=>!r.done&&!(r.first_due&&r.first_due<DATA.today));
+  const done=all.filter(r=>r.done);
+  let html='';
+  if(carried.length)html+='<div class="section">⚠ Carried over</div>'+carried.map(row).join('');
+  html+='<div class="section">Today</div>'+(today.length?today.map(row).join(''):'<p class="empty">Nothing for today — add below</p>');
+  if(done.length)html+='<div class="section">Done today</div>'+done.map(row).join('');
+  el.innerHTML=html;
+}
+async function tick(id,done,kind){await post({action:kind==='todo'?'done_todo':'done_rem',id,done});load()}
+async function setDate(id,due,kind){if(!due)return;await post({action:'set_date',id,due,kind});load()}
+async function load(){try{DATA=await post({action:'data'});render()}catch(e){document.getElementById('list').innerHTML='<p class="empty">Connection problem — retrying…</p>'}}
+document.getElementById('nb').onclick=async()=>{const t=document.getElementById('nt').value.trim();if(!t)return;await post({action:'add',title:t,assignee_id:document.getElementById('na').value||null,due:document.getElementById('nd').value||null,due_time:document.getElementById('nh').value||null});document.getElementById('nt').value='';document.getElementById('nh').value='';load()};
+document.getElementById('nd').value=new Date(Date.now()+72e5).toISOString().slice(0,10);
+load();setInterval(load,45000);
+</script></body></html>
