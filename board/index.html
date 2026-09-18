@@ -48,7 +48,7 @@ function row(r){
   const meta=(carried?'<span class="warn">⚠ not completed '+(r.first_due===yest()?'yesterday':'since '+r.first_due)+' — prioritise today</span> · ':'')
     +(r.category?esc(r.category)+' · ':'')
     +(r.done?'✓ done '+new Date(r.done_at).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})+' by '+esc(r.done_by||'?'):'due '+dateBox(r));
-  return '<div class="item '+(carried?'carried ':'')+(r.done?'done':'')+'"><input class="cb" type="checkbox" '+(r.done?'checked':'')+' onchange="tick(\''+r.id+'\',this.checked,\''+r.kind+'\')"><div><div class="t">'+chip(r.assignee_id)+title+'</div><div class="meta">'+meta+'</div></div></div>';
+  return '<div class="item '+(carried?'carried ':'')+(r.done?'done':'')+'"><input class="cb" type="checkbox" '+(r.done?'checked':'')+' onchange="tick(\''+r.id+'\',this.checked,\''+r.kind+'\')"><div><div class="t" style="cursor:pointer" title="Tap to edit" onclick="editItem(\''+r.id+'\',\''+r.kind+'\')">'+chip(r.assignee_id)+title+'</div><div class="meta">'+meta+'</div></div></div>';
 }
 function render(){
   const el=document.getElementById('list');if(!DATA){el.innerHTML='<p class="empty">Loading…</p>';return}
@@ -73,6 +73,13 @@ function render(){
   el.innerHTML=html;
 }
 function setFilter(id){FILTER=id;render()}
+async function editItem(id,kind){
+  const src=kind==='rem'?(DATA.reminders||[]):(DATA.todos||[]);
+  const cur=src.find(x=>x.id===id);if(!cur)return;
+  const nt=prompt('Edit the wording:',cur.title);
+  if(nt===null||!nt.trim()||nt.trim()===cur.title)return;
+  await post({action:'set_title',id,kind,title:nt.trim()});load();
+}
 async function tick(id,done,kind){await post({action:kind==='todo'?'done_todo':'done_rem',id,done});load()}
 async function setDate(id,due,kind){if(!due)return;await post({action:'set_date',id,due,kind});load()}
 async function load(){try{DATA=await post({action:'data'});render()}catch(e){document.getElementById('list').innerHTML='<p class="empty">Connection problem — retrying…</p>'}}
