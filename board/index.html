@@ -32,13 +32,41 @@ main{max-width:760px;margin:0 auto;padding:14px}
 <main><div id="list"><p class="empty">Loading…</p></div></main>
 <div class="add"><input type="text" id="nt" placeholder="Add a task…"><select id="na"></select><input type="date" id="nd"><input type="time" id="nh" title="Set a time to make it a reminder"><button id="nb">Add</button><p class="hint">Give it a time and it becomes a reminder that pops up in the app at that time. End with !, !! or !!! to set priority — !!! goes to the top.</p></div>
 <script>
-const TOKEN=new URLSearchParams(location.search).get('t');
+// The token used to live ONLY in ?t=. Open the board from a bookmark without
+// it — or let the phone drop the query string — and every call 403s. The page
+// said nothing, so it read as "can't add reminders" (Max, 2026-09-28).
+// Remember it once seen, and fall back to the remembered one.
+const TOKEN=(function(){
+  const fromUrl=new URLSearchParams(location.search).get('t');
+  try{
+    if(fromUrl){localStorage.setItem('b4u_board_token',fromUrl);return fromUrl;}
+    return localStorage.getItem('b4u_board_token')||null;
+  }catch(e){return fromUrl;}
+})();
 const API='https://jpzhifjccuxcetdodeue.supabase.co/functions/v1/todo-web';
 let DATA=null;
 const colors={};const PAL=["#26292c","#26292c","#26292c","#26292c","#26292c","#26292c"];
 function whoName(){const w=document.getElementById('who');return (w.selectedOptions[0]&&w.selectedOptions[0].text)||'Dom'}
 function dateFilter(){return document.getElementById('df').value||''}
-async function post(body){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,who:whoName(),...body})});return r.json()}
+function say(msg,bad){let el=document.getElementById('msg');
+  if(!el){el=document.createElement('div');el.id='msg';
+    el.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:16px;padding:10px 14px;border-radius:10px;font:600 13px system-ui;z-index:99;max-width:90vw';
+    document.body.appendChild(el);}
+  el.textContent=msg;el.style.background=bad?'#D0112B':'#111';el.style.color='#fff';
+  clearTimeout(say._t);say._t=setTimeout(()=>{el.textContent='';el.style.background='transparent'},4000);}
+
+// ⚠️ Errors used to be swallowed whole: a 403 or a dropped connection cleared
+// the box and showed nothing at all, which is indistinguishable from "adding
+// is broken". Every failure now says so.
+async function post(body){
+  if(!TOKEN){say('This board link is missing its token — open it from the original link Max sent.',1);return{error:'no token'};}
+  let r;
+  try{r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,who:whoName(),...body})});}
+  catch(e){say('No connection — nothing was saved.',1);return{error:String(e)};}
+  let j={};try{j=await r.json()}catch(e){}
+  if(!r.ok||j.error){say(r.status===403?'This board link is no longer valid — ask Max for a new one.':('Could not save: '+(j.error||r.status)),1);return j;}
+  return j;
+}
 function chip(aid){const a=(DATA.assignees||[]).find(x=>x.id===aid);if(!a)return '';return '<span class="chip" style="background:'+(colors[a.id]||'#555')+'">'+a.name+'</span>'}
 function esc(x){return String(x||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}
 function yest(){const d=new Date(Date.now()-86400000);return d.toISOString().slice(0,10)}
@@ -99,7 +127,7 @@ async function editItem(id,kind){
 async function tick(id,done,kind){await post({action:kind==='todo'?'done_todo':'done_rem',id,done});load()}
 async function setDate(id,due,kind){if(!due)return;await post({action:'set_date',id,due,kind});load()}
 async function load(){try{DATA=await post({action:'data',until:dateFilter()||null});render()}catch(e){document.getElementById('list').innerHTML='<p class="empty">Connection problem — retrying…</p>'}}
-document.getElementById('nb').onclick=async()=>{const t=document.getElementById('nt').value.trim();if(!t)return;await post({action:'add',title:t,assignee_id:document.getElementById('na').value||null,due:document.getElementById('nd').value||null,due_time:document.getElementById('nh').value||null});document.getElementById('nt').value='';document.getElementById('nh').value='';load()};
+document.getElementById('nb').onclick=async()=>{const t=document.getElementById('nt').value.trim();if(!t)return;await post({action:'add',title:t,assignee_id:document.getElementById('na').value||null,due:document.getElementById('nd').value||null,due_time:document.getElementById('nh').value||null});document.getElementById('nt').value='';document.getElementById('nh').value='';say(document.getElementById('nh').value?'Reminder added':'Added');load()};
 document.getElementById('df').onchange=()=>load();
 document.getElementById('who').onchange=()=>{localStorage.setItem('board_who',document.getElementById('who').value);render()};
 document.getElementById('nd').value=new Date(Date.now()+72e5).toISOString().slice(0,10);
