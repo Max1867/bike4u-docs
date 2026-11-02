@@ -1,0 +1,73 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bike 4 U — Rider App</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0a0b0c;color:#f2f3f4}
+main{max-width:420px;margin:0 auto;padding:48px 20px;text-align:center}
+img{width:120px;margin-bottom:24px}
+h1{font-size:22px;margin:0 0 10px}
+p{font-size:15px;line-height:1.5;color:#c9cdd1;margin:0 0 16px}
+.ok{color:#D0112B;font-weight:700}
+label{display:block;text-align:left;font-size:13px;color:#8a8f94;margin:14px 0 6px}
+input{width:100%;box-sizing:border-box;background:#131415;border:1px solid #26292c;color:#f2f3f4;border-radius:8px;padding:12px;font-size:16px}
+button{width:100%;background:#D0112B;color:#fff;border:none;border-radius:8px;padding:13px;font-weight:700;font-size:16px;margin-top:18px;cursor:pointer}
+button:disabled{opacity:.5}
+.err{color:#ff6b6b;font-size:14px;margin-top:12px}
+.hide{display:none}
+</style></head><body><main>
+<img src="/logo.png" alt="Bike 4 U">
+<section id="confirmed">
+  <h1>Email confirmed <span class="ok">✓</span></h1>
+  <p>Your Bike 4 U rider account is ready.</p>
+  <p><strong>Open the BikeRider app on your phone and sign in</strong> with your email and password.</p>
+</section>
+<section id="recovery" class="hide">
+  <h1>Choose a new password</h1>
+  <p>For your Bike 4 U rider account.</p>
+  <form id="f">
+    <label for="p1">New password (at least 8 characters)</label><input id="p1" type="password" minlength="8" required autocomplete="new-password">
+    <label for="p2">Type it again</label><input id="p2" type="password" minlength="8" required autocomplete="new-password">
+    <button id="b" type="submit">Save new password</button>
+    <div id="e" class="err"></div>
+  </form>
+</section>
+<section id="done" class="hide">
+  <h1>Password saved <span class="ok">✓</span></h1>
+  <p><strong>Open the BikeRider app and sign in</strong> with your new password.</p>
+</section>
+<section id="failed" class="hide">
+  <h1>This link has expired</h1>
+  <p id="failmsg">Open the BikeRider app and ask for a new link.</p>
+</section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js"></script>
+<script>
+// Supabase Auth sends every email link here (site_url). Confirmation links
+// just need a human-readable landing; recovery links carry a session in the
+// URL hash and need somewhere to type the new password — the mobile app has
+// no deep link, so this page is that somewhere (WS0, 2026-11-02).
+(function(){
+  const h=new URLSearchParams(location.hash.replace(/^#/,''));
+  const q=new URLSearchParams(location.search);
+  const show=id=>{for(const s of document.querySelectorAll('section'))s.classList.toggle('hide',s.id!==id);};
+  const err=h.get('error_description')||q.get('error_description');
+  if(err){show('failed');document.getElementById('failmsg').textContent=err.replace(/\+/g,' ')+'. Open the BikeRider app and ask for a new link.';return;}
+  if(h.get('type')!=='recovery'||!h.get('access_token'))return;
+  show('recovery');
+  const sb=supabase.createClient('https://jpzhifjccuxcetdodeue.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpwemhpZmpjY3V4Y2V0ZG9kZXVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzODgxODQsImV4cCI6MjA4OTk2NDE4NH0._Y2r5EO7wS9jR5hjk_Xly7wcGq4d4nsJMbexdZdPow8',{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+  document.getElementById('f').addEventListener('submit',async ev=>{
+    ev.preventDefault();
+    const p1=document.getElementById('p1').value,p2=document.getElementById('p2').value,e=document.getElementById('e'),b=document.getElementById('b');
+    e.textContent='';
+    if(p1!==p2){e.textContent='The two passwords do not match.';return;}
+    b.disabled=true;
+    const {error:se}=await sb.auth.setSession({access_token:h.get('access_token'),refresh_token:h.get('refresh_token')||''});
+    if(se){e.textContent='This link has expired. Open the app and ask for a new one.';b.disabled=false;return;}
+    const {error:ue}=await sb.auth.updateUser({password:p1});
+    if(ue){e.textContent=ue.message;b.disabled=false;return;}
+    await sb.auth.signOut();
+    show('done');
+  });
+})();
+</script>
+</body></html>
